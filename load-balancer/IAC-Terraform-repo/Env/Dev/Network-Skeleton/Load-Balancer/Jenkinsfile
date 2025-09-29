@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+    tools {
+        terraform 'terraform'   // Jenkins Global Tool Configuration name for Terraform
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Apply or Destroy the infra')
+        string(name: 'BRANCH_NAME', defaultValue: 'SCRUM-408-Ashutosh', description: 'Git branch to build')
+    }
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS-Sneha')     
+        AWS_SECRET_ACCESS_KEY = credentials('AWS-Sneha')     
+        
+    }
+    stages {
+        stage('Checkout Code') {
+            steps { 
+                git branch: "${params.BRANCH_NAME}",
+                    url: 'https://github.com/Snaatak-Cloudops-Crew/IAC-Terraform-repo.git',
+                    credentialsId: 'github-token'
+            }
+        }
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/Load-Balancer init -input=false'
+            }
+        }
+        stage('Terraform Plan') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/Load-Balancer plan -out=tfplan -input=false'
+            }
+        }
+        stage('Terraform Apply/Destroy') {
+            steps {
+                script {
+                    if (params.ACTION == 'apply') {
+                        sh 'terraform -chdir=Env/Dev/Network-Skeleton/Load-Balancer apply -input=false -auto-approve tfplan'
+                    } else if (params.ACTION == 'destroy') {
+                        sh 'terraform -chdir=Env/Dev/Network-Skeleton/Load-Balancer destroy -auto-approve'
+                    }
+                }
+            }
+        }
+        stage('Terraform Outputs') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/Load-Balancer output'
+            }
+        }
+    }
+    post { 
+        success { echo "Terraform ${params.ACTION} completed successfully!" } 
+        failure { echo "Terraform ${params.ACTION} failed. Check logs." } 
+    }
+}

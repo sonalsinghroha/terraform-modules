@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+    tools {
+        terraform 'terraform' // Ensure this matches the name in Jenkins Global Tool Config
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Apply or Destroy the infra')
+        string(name: 'BRANCH_NAME', defaultValue: 'SCRUM-401-abhishek', description: 'Git branch to build')
+    }
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS-Sneha')     
+        AWS_SECRET_ACCESS_KEY = credentials('AWS-Sneha')     
+        
+    }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: "${params.BRANCH_NAME}",
+                    url: 'https://github.com/Snaatak-Cloudops-Crew/IAC-Terraform-repo.git',
+                    credentialsId: 'github-token'
+            }
+        }
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/VPC init'
+            }
+        }
+        stage('Terraform Apply/Destroy') {
+            steps {
+                sh "terraform -chdir=Env/Dev/Network-Skeleton/VPC ${params.ACTION} -auto-approve"
+            }
+        }
+        stage('Terraform Outputs') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/VPC output'
+            }
+        }
+    }
+    post {
+        success { echo "Terraform ${params.ACTION} completed successfully!" }
+        failure { echo "Terraform ${params.ACTION} failed. Check logs." }
+    }
+}

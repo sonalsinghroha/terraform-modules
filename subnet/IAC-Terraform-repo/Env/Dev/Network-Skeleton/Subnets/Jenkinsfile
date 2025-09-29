@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+    tools {
+        terraform 'terraform'
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Apply or Destroy the infra')
+        string(name: 'BRANCH_NAME', defaultValue: 'SCRUM-402-Sneha-Joshi', description: 'Git branch to build')
+    }
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-1'
+    }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: "${params.BRANCH_NAME}",
+                    url: 'https://github.com/Snaatak-Cloudops-Crew/IAC-Terraform-repo.git',
+                    credentialsId: 'github-token'
+            }
+        }
+        stage('Terraform Init') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'AWS-Sneha']]) {
+                    sh 'terraform -chdir=Env/Dev/Network-Skeleton/Subnets init'
+                }
+            }
+        }
+        stage('Terraform Apply/Destroy') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'AWS-Sneha']]) {
+                    sh "terraform -chdir=Env/Dev/Network-Skeleton/Subnets ${params.ACTION} -auto-approve"
+                }
+            }
+        }
+        stage('Terraform Outputs') {
+            steps {
+                sh 'terraform -chdir=Env/Dev/Network-Skeleton/Subnets output'
+            }
+        }
+    }
+    post {
+        success { echo "Terraform ${params.ACTION} completed successfully!" }
+        failure { echo "Terraform ${params.ACTION} failed. Check logs." }
+    }
+}
